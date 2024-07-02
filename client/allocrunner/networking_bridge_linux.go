@@ -149,6 +149,8 @@ func (b *bridgeNetworkConfigurator) Setup(ctx context.Context, alloc *structs.Al
 
 // Teardown calls the CNI plugins with the delete action
 func (b *bridgeNetworkConfigurator) Teardown(ctx context.Context, alloc *structs.Allocation, spec *drivers.NetworkIsolationSpec) error {
+	b.logger.Warn("*** bridgeNetworkConfigurator.Teardown", "alloc_id", alloc.ID, "spec", spec)
+
 	return b.cni.Teardown(ctx, alloc, spec)
 }
 

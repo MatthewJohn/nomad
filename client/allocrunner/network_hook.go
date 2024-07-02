@@ -178,14 +178,18 @@ func (h *networkHook) Prerun() error {
 }
 
 func (h *networkHook) Postrun() error {
+	h.logger.Warn("*** networkHook.Postrun running", "alloc", h.alloc.ID)
 
 	// we need the spec for network teardown
 	if h.spec != nil {
+		h.logger.Warn("*** h.spec not nil", "h.spec", h.spec)
 		if err := h.networkConfigurator.Teardown(context.TODO(), h.alloc, h.spec); err != nil {
 			h.logger.Error("failed to cleanup network for allocation, resources may have leaked", "alloc", h.alloc.ID, "error", err)
 		}
 	}
 
 	// issue driver destroy regardless if we have a spec (e.g. cleanup pause container)
-	return h.manager.DestroyNetwork(h.alloc.ID, h.spec)
+	err := h.manager.DestroyNetwork(h.alloc.ID, h.spec)
+	h.logger.Warn("*** h.manager.DestroyNetwork done", "err", err)
+	return err
 }

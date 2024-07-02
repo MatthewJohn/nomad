@@ -393,6 +393,8 @@ func (ar *allocRunner) Run() {
 	ar.runTasks()
 
 	if ar.isShuttingDown() {
+		ar.logger.Warn("******* alloc runner isShuttingDown, skipping postrun",
+			"alloc_id", ar.alloc.ID)
 		return
 	}
 
@@ -791,9 +793,10 @@ func (ar *allocRunner) killTasks() map[string]*structs.TaskState {
 		if !tr.IsPoststopTask() {
 			continue
 		}
-
+		ar.logger.Warn("*** getting state for poststop task", "name", name)
 		state := tr.TaskState()
 		if state != nil {
+			ar.logger.Warn("*** got state for poststop task", "name", name, "state", state)
 			states[name] = state
 		}
 	}
@@ -1058,6 +1061,7 @@ func (ar *allocRunner) Listener() *cstructs.AllocListener {
 }
 
 func (ar *allocRunner) destroyImpl() {
+	ar.logger.Warn("*** destroyImpl")
 	// Stop any running tasks and persist states in case the client is
 	// shutdown before Destroy finishes.
 	states := ar.killTasks()
@@ -1065,8 +1069,10 @@ func (ar *allocRunner) destroyImpl() {
 	ar.stateUpdater.AllocStateUpdated(calloc)
 
 	// Wait for tasks to exit and postrun hooks to finish
+	ar.logger.Warn("*** destroyImpl blocking on ar.waitCh")
 	<-ar.waitCh
 
+	ar.logger.Warn("*** destroyImpl running destroy hooks")
 	// Run destroy hooks
 	if err := ar.destroy(); err != nil {
 		ar.logger.Warn("error running destroy hooks", "error", err)
