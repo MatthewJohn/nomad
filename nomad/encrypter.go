@@ -496,6 +496,10 @@ func (e *Encrypter) decryptWrappedKeyTask(ctx context.Context, cancel context.Ca
 		RSAKey: rsaKey,
 	}
 
+	e.log.Debug("reached sleep point", "key_id", meta.KeyID)
+	time.Sleep(3 * time.Second)
+	e.log.Debug("passed sleep point", "key_id", meta.KeyID)
+
 	err = helper.WithBackoffFunc(ctx, minBackoff, maxBackoff, func() error {
 		err := e.addCipher(rootKey)
 		if err != nil {
