@@ -182,6 +182,7 @@ func (e *Encrypter) loadKeystore() error {
 		if err != nil {
 			return fmt.Errorf("could not add key file %s to keystore: %w", path, err)
 		}
+		e.log.Debug("added key to keyring", "key_id", key.Meta.KeyID)
 
 		// we loaded this key from at least one KEK configuration, so clear any
 		// error from a previous file that we couldn't read from
@@ -360,6 +361,8 @@ func (e *Encrypter) AddUnwrappedKey(rootKey *structs.UnwrappedRootKey, isUpgrade
 	if err := e.addCipher(rootKey); err != nil {
 		return nil, err
 	}
+	e.log.Debug("added key to keyring", "key_id", rootKey.Meta.KeyID)
+
 	return e.wrapRootKey(rootKey, isUpgraded)
 }
 
@@ -367,13 +370,14 @@ func (e *Encrypter) AddUnwrappedKey(rootKey *structs.UnwrappedRootKey, isUpgrade
 // Raft. It's only called as a goroutine by the FSM Apply for WrappedRootKeys,
 // but it returns an error for ease of testing.
 func (e *Encrypter) AddWrappedKey(ctx context.Context, wrappedKeys *structs.RootKey) error {
-
 	logger := e.log.With("key_id", wrappedKeys.KeyID)
+	logger.Debug("AddWrappedKey")
 
 	e.lock.Lock()
 
 	_, err := e.cipherSetByIDLocked(wrappedKeys.KeyID)
 	if err == nil {
+		logger.Debug("cipherSet exists for key")
 
 		// key material for each key ID is immutable so nothing to do, but we
 		// can cancel and remove any running decrypt tasks
@@ -386,6 +390,8 @@ func (e *Encrypter) AddWrappedKey(ctx context.Context, wrappedKeys *structs.Root
 	}
 
 	if cancel, ok := e.decryptTasks[wrappedKeys.KeyID]; ok {
+		logger.Debug("canceling in-flight task")
+
 		// stop any previous tasks for this same key ID under the assumption
 		// they're broken or being superceded, but don't remove the CancelFunc
 		// from the map yet so that other callers don't think we can continue
@@ -399,6 +405,7 @@ func (e *Encrypter) AddWrappedKey(ctx context.Context, wrappedKeys *structs.Root
 	var mErr *multierror.Error
 
 	decryptTasks := 0
+	logger.Debug("decrypting wrapped keys", "len", len(wrappedKeys.WrappedKeys))
 	for _, wrappedKey := range wrappedKeys.WrappedKeys {
 		providerID := wrappedKey.ProviderID
 		if providerID == "" {
@@ -449,6 +456,7 @@ func (e *Encrypter) AddWrappedKey(ctx context.Context, wrappedKeys *structs.Root
 // successful or until the context is canceled (another task completes or the
 // server shuts down). The error returned is only for testing and diagnostics.
 func (e *Encrypter) decryptWrappedKeyTask(ctx context.Context, cancel context.CancelFunc, wrapper kms.Wrapper, provider *structs.KEKProviderConfig, meta *structs.RootKeyMeta, wrappedKey *structs.WrappedKey) error {
+	e.log.Debug("decryptWrappedKeyTask", "key_id", meta.KeyID)
 
 	var key []byte
 	var rsaKey []byte
@@ -507,6 +515,7 @@ func (e *Encrypter) decryptWrappedKeyTask(ctx context.Context, cancel context.Ca
 			e.log.Error(err.Error(), "key_id", meta.KeyID)
 			return err
 		}
+		e.log.Debug("added key to keyring", "key_id", meta.KeyID)
 		return nil
 	})
 	if err != nil {
